@@ -1,4 +1,4 @@
-import { LISTS, PROJECTS, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
+import { LISTS, PROJECTS, OWNER_BY_LIST, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
 
 export const revalidate = 300; // cache 5 min; ClickUp rate limits are tight
 
@@ -52,7 +52,7 @@ export async function GET() {
         flow: flowOf(status),
         project,
         theme: p.theme,
-        owner: p.owner,
+        owner: OWNER_BY_LIST[l.key] || p.owner,
         metrics: p.metrics.slice(),
         needsReview: !confident,
         assignees: (t.assignees || []).map(a => a.username),
