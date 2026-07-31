@@ -1,7 +1,61 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Chart from "chart.js/auto";
 import { THEMES, METRICS, PROJECTS } from "../lib/taxonomy";
+
+// Stacked horizontal bar: tickets in flight per team, split by theme.
+// Respects the theme selection above it, same as the prototype did.
+function TeamChart({ inflight, selTheme }) {
+  const ref = useRef(null);
+  const instance = useRef(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    const teams = [...new Set(inflight.map(r => r.team))].sort();
+    const keys = Object.keys(THEMES).filter(k => !selTheme || k === selTheme);
+    const datasets = keys.map(k => ({
+      label: THEMES[k].name,
+      backgroundColor: THEMES[k].hex,
+      data: teams.map(t => inflight.filter(r => r.team === t && r.theme === k).length),
+    }));
+
+    if (instance.current) instance.current.destroy();
+    instance.current = new Chart(canvas.getContext("2d"), {
+      type: "bar",
+      data: { labels: teams, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.x} in flight` } },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            beginAtZero: true,
+            ticks: { precision: 0, font: { size: 11 } },
+            title: { display: true, text: "tickets in flight", font: { size: 11 } },
+          },
+          y: { stacked: true, ticks: { font: { size: 11 } } },
+        },
+      },
+    });
+
+    return () => {
+      if (instance.current) {
+        instance.current.destroy();
+        instance.current = null;
+      }
+    };
+  }, [inflight, selTheme]);
+
+  return <canvas ref={ref} />;
+}
 
 const OVERVIEW =
   "For APAC, we are focused on tying our projects to moving the needle for all of Pattern's top metrics — revenue generation, cost automation, and being partner obsessed. Every project below is mapped to the specific metrics it moves, and every ClickUp ticket rolls up to a project.";
@@ -163,6 +217,11 @@ export default function Page() {
             </div>
           );
         })}
+      </div>
+
+      <div style={S.section}>Work in flight, by team</div>
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, height: 290 }}>
+        <TeamChart inflight={scoped} selTheme={selTheme} />
       </div>
 
       <div style={S.section}>Tickets</div>
