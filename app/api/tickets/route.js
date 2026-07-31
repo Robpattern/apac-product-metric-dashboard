@@ -1,4 +1,4 @@
-import { LISTS, PROJECTS, OWNER_BY_LIST, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
+import { LISTS, PROJECTS, OWNER_BY_LIST, EXCLUDED, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
 
 // Read the query string, so the route must be dynamic. Caching is handled per-fetch
 // below: 5 min normally, bypassed entirely when the Sync button asks for fresh data.
@@ -34,6 +34,7 @@ export async function GET(request) {
 
   const failures = [];
   const tickets = [];
+  let excluded = 0;
 
   const results = await Promise.all(
     LISTS.map(l =>
@@ -49,6 +50,7 @@ export async function GET(request) {
       const status = t.status?.status || "";
       if (isClosed(status)) continue;
       const { project, confident } = classifyProject(l.key, t.name);
+      if (project === EXCLUDED) { excluded++; continue; }
       const p = PROJECTS[project];
       tickets.push({
         id: t.id,
@@ -74,6 +76,7 @@ export async function GET(request) {
     listsFailed: failures.length,
     failures,
     count: tickets.length,
+    excluded, // technical work dropped from exec reporting
     tickets,
   });
 }

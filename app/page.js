@@ -77,7 +77,7 @@ const S = {
     border: `1px solid ${kind === "warn" ? "#f0c36d" : kind === "ok" ? "#b7e4c7" : C.border}`,
     background: kind === "warn" ? "#fff9ec" : kind === "ok" ? "#f2fbf5" : C.soft,
     color: kind === "warn" ? "#7a5b12" : kind === "ok" ? "#17643a" : C.text }),
-  themes: { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10 },
+  themes: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 },
   metrics: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 8 },
   projects: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 9 },
   chip: { display: "inline-block", fontSize: 10.5, padding: "2px 7px", borderRadius: 999,
