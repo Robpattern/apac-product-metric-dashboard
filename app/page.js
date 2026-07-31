@@ -267,11 +267,6 @@ export default function Page() {
               <tr key={t.id}>
                 <td style={S.td}>
                   <a href={t.url} target="_blank" rel="noopener noreferrer" style={{ color: C.text }}>{t.cid}</a> — {t.name}
-                  {t.needsReview && (
-                    <span title="Classified by fallback, not a keyword match"
-                      style={{ background: "#fff9ec", border: "1px solid #f0c36d", color: "#7a5b12",
-                        fontSize: 10.5, padding: "1px 6px", borderRadius: 999, marginLeft: 4 }}>?</span>
-                  )}
                 </td>
                 <td style={{ ...S.td, color: C.muted }}>{t.team}</td>
                 <td style={{ ...S.td, color: C.muted }}>{t.status}</td>
