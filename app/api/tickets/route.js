@@ -127,6 +127,7 @@ export async function GET(request) {
       const p = PROJECTS[project];
       byId.set(t.id, {
         id: t.id,
+        parent: t.parent || null, // lets the table nest subtasks under their epic
         cid,
         name: t.name,
         url: t.url,

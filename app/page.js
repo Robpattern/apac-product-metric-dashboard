@@ -167,6 +167,30 @@ export default function Page() {
     [allTickets]
   );
 
+  // Nest subtasks under their parent so Nimbus's report items read as one epic with its
+  // children rather than 20 unrelated rows. A ticket whose parent is filtered out becomes
+  // a root itself, so nothing disappears. Counts are unaffected — this is display only.
+  const orderedVisible = useMemo(() => {
+    const byIdMap = new Map(visible.map(r => [r.id, r]));
+    const kids = new Map();
+    const roots = [];
+    for (const r of visible) {
+      if (r.parent && byIdMap.has(r.parent)) {
+        if (!kids.has(r.parent)) kids.set(r.parent, []);
+        kids.get(r.parent).push(r);
+      } else {
+        roots.push(r);
+      }
+    }
+    const out = [];
+    const walk = (r, depth) => {
+      out.push({ row: r, depth, childCount: (kids.get(r.id) || []).length });
+      for (const c of kids.get(r.id) || []) walk(c, depth + 1);
+    };
+    roots.forEach(r => walk(r, 0));
+    return out;
+  }, [visible]);
+
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
   const owners = useMemo(() => [...new Set(tickets.map(t => t.owner))].sort(), [tickets]);
 
@@ -329,10 +353,16 @@ export default function Page() {
             </tr>
           </thead>
           <tbody>
-            {visible.map(t => (
-              <tr key={t.id}>
-                <td style={S.td}>
-                  <a href={t.url} target="_blank" rel="noopener noreferrer" style={{ color: C.text }}>{t.cid}</a> — {t.name}
+            {orderedVisible.map(({ row: t, depth, childCount }) => (
+              <tr key={t.id} style={depth > 0 ? { background: "#fcfcfd" } : undefined}>
+                <td style={{ ...S.td, paddingLeft: 8 + depth * 18 }}>
+                  {depth > 0 && <span style={{ color: "#c9ced6", marginRight: 5 }}>└</span>}
+                  <a href={t.url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: depth > 0 ? C.muted : C.text }}>{t.cid}</a>
+                  <span style={{ color: depth > 0 ? C.muted : C.text }}> — {t.name}</span>
+                  {childCount > 0 && (
+                    <span style={{ ...S.chip, marginLeft: 6 }}>{childCount} subtask{childCount === 1 ? "" : "s"}</span>
+                  )}
                 </td>
                 <td style={{ ...S.td, color: C.muted }}>{t.team}</td>
                 <td style={{ ...S.td, color: C.muted }}>{t.status}</td>
