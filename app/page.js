@@ -128,7 +128,7 @@ export default function Page() {
   const tickets = useMemo(() => {
     if (sprintScope === "all") return allTickets;
     if (sprintScope === "current") return allTickets.filter(t => t.sprintState === "active" || t.sprintState === "none");
-    return allTickets.filter(t => t.sprint === sprintScope);
+    return allTickets.filter(t => `${t.team}: ${t.sprint}` === sprintScope);
   }, [allTickets, sprintScope]);
 
   const inflight = useMemo(() => tickets.filter(t => t.flow === "inflight"), [tickets]);
@@ -147,13 +147,10 @@ export default function Page() {
     (!q || t.name.toLowerCase().includes(q.toLowerCase()))
   ), [tickets, flow, selTheme, proj, team, owner, q]);
 
-  const sprintNames = useMemo(
-    () => [...new Set(allTickets.filter(t => t.sprint).map(t => t.sprint))]
-      .sort((a, b) => parseInt(b.replace(/\D/g, ""), 10) - parseInt(a.replace(/\D/g, ""), 10)),
-    [allTickets]
-  );
-  const activeSprint = useMemo(
-    () => (allTickets.find(t => t.sprintState === "active") || {}).sprint || null,
+  // Sprint numbers are per team — Nimbus Sprint 13 and Ruyi Sprint 13 are different
+  // fortnights — so options are labelled "Team: Sprint n" rather than by number alone.
+  const sprintOptions = useMemo(
+    () => [...new Set(allTickets.filter(t => t.sprint).map(t => `${t.team}: ${t.sprint}`))].sort(),
     [allTickets]
   );
 
@@ -181,12 +178,13 @@ export default function Page() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: C.muted }}>Sprint scope</span>
         <select style={S.select} value={sprintScope} onChange={e => setSprintScope(e.target.value)}>
-          <option value="current">Current sprint{activeSprint ? ` (${activeSprint})` : ""} + non-sprint teams</option>
-          {sprintNames.map(s => <option key={s} value={s}>{s} only</option>)}
+          <option value="current">Current sprint per team + non-sprint teams</option>
+          {sprintOptions.map(s => <option key={s} value={s}>{s} only</option>)}
           <option value="all">All sprints and backlogs</option>
         </select>
         <span style={{ fontSize: 11.5, color: C.muted }}>
           {tickets.length} of {allTickets.length} tickets in scope
+          {data.activeSprints?.length ? ` · active: ${data.activeSprints.join(", ")}` : ""}
         </span>
       </div>
 
