@@ -102,6 +102,7 @@ export default function Page() {
   const [team, setTeam] = useState("");
   const [owner, setOwner] = useState("");
   const [q, setQ] = useState("");
+  const [sprintScope, setSprintScope] = useState("current");
 
   const [syncing, setSyncing] = useState(false);
 
@@ -119,7 +120,17 @@ export default function Page() {
 
   useEffect(() => { load(false); }, [load]);
 
-  const tickets = data?.tickets || [];
+  // Sprint scope applies to the whole page — themes, metrics, projects, chart and table.
+  // "current" = the active sprint plus everything with no sprint at all, which is how
+  // Design Portfolio, AI Automation and Product Portfolio work. It deliberately drops
+  // last sprint's leftovers and next sprint's early starts.
+  const allTickets = data?.tickets || [];
+  const tickets = useMemo(() => {
+    if (sprintScope === "all") return allTickets;
+    if (sprintScope === "current") return allTickets.filter(t => t.sprintState === "active" || t.sprintState === "none");
+    return allTickets.filter(t => t.sprint === sprintScope);
+  }, [allTickets, sprintScope]);
+
   const inflight = useMemo(() => tickets.filter(t => t.flow === "inflight"), [tickets]);
   const queued = useMemo(() => tickets.filter(t => t.flow === "queued"), [tickets]);
   const scoped = useMemo(
@@ -135,6 +146,16 @@ export default function Page() {
     (!owner || t.owner === owner) &&
     (!q || t.name.toLowerCase().includes(q.toLowerCase()))
   ), [tickets, flow, selTheme, proj, team, owner, q]);
+
+  const sprintNames = useMemo(
+    () => [...new Set(allTickets.filter(t => t.sprint).map(t => t.sprint))]
+      .sort((a, b) => parseInt(b.replace(/\D/g, ""), 10) - parseInt(a.replace(/\D/g, ""), 10)),
+    [allTickets]
+  );
+  const activeSprint = useMemo(
+    () => (allTickets.find(t => t.sprintState === "active") || {}).sprint || null,
+    [allTickets]
+  );
 
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
   const owners = useMemo(() => [...new Set(tickets.map(t => t.owner))].sort(), [tickets]);
@@ -156,6 +177,18 @@ export default function Page() {
     <div style={S.wrap}>
       <h1 style={S.h1}>APAC Technology — projects to Pattern&apos;s top metrics</h1>
       <div style={S.overview}>{OVERVIEW}</div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: C.muted }}>Sprint scope</span>
+        <select style={S.select} value={sprintScope} onChange={e => setSprintScope(e.target.value)}>
+          <option value="current">Current sprint{activeSprint ? ` (${activeSprint})` : ""} + non-sprint teams</option>
+          {sprintNames.map(s => <option key={s} value={s}>{s} only</option>)}
+          <option value="all">All sprints and backlogs</option>
+        </select>
+        <span style={{ fontSize: 11.5, color: C.muted }}>
+          {tickets.length} of {allTickets.length} tickets in scope
+        </span>
+      </div>
 
       <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
         <div style={{ flex: 1 }}>
