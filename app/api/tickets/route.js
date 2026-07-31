@@ -41,14 +41,16 @@ async function fetchFolderLists(folder, token, fresh) {
     id: l.id,
     team: folder.team,
     listName: l.name,
+    rollUp: !!folder.rollUp,
   }));
 }
 
-async function fetchList(listId, token, fresh) {
-  // subtasks=false: subtasks were pulling Sprint 12 tickets in through backlog parents,
-  // which is how last sprint's work looked like current work. Sprint lists are read
-  // directly now, so the tickets arrive under their real list instead.
-  const url = `${CLICKUP}/list/${listId}/task?subtasks=false&include_closed=false&order_by=updated&reverse=true`;
+async function fetchList(listId, token, fresh, rollUp) {
+  // rollUp collapses a nested tree to its root task. Where it's off, subtasks are read as
+  // tickets in their own right — safe now that sprint lists are read directly and the
+  // dedupe below prefers the active sprint, so an old subtask can't masquerade as current.
+  const subtasks = rollUp ? "false" : "true";
+  const url = `${CLICKUP}/list/${listId}/task?subtasks=${subtasks}&include_closed=false&order_by=updated&reverse=true`;
   const res = await fetch(url, { headers: { Authorization: token }, ...cacheOpts(fresh) });
   if (!res.ok) {
     const body = await res.text();
@@ -93,7 +95,7 @@ export async function GET(request) {
 
   const results = await Promise.all(
     lists.map(l =>
-      fetchList(l.id, token, fresh)
+      fetchList(l.id, token, fresh, l.rollUp)
         .then(tasks => ({ l, tasks }))
         .catch(e => {
           failures.push(`${l.team} → ${l.listName}: ${e.message}`);

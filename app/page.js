@@ -120,16 +120,29 @@ export default function Page() {
 
   useEffect(() => { load(false); }, [load]);
 
-  // Sprint scope applies to the whole page — themes, metrics, projects, chart and table.
-  // "current" = the active sprint plus everything with no sprint at all, which is how
-  // Design Portfolio, AI Automation and Product Portfolio work. It deliberately drops
-  // last sprint's leftovers and next sprint's early starts.
   const allTickets = data?.tickets || [];
+
+  // Teams that actually run sprints. For those, "current" means the active sprint only —
+  // their backlog is explicitly not current work. ATECH-7707 sits in AdTech Backlog with
+  // status backlog and was showing up as current simply because a backlog has no sprint.
+  const sprintTeams = useMemo(
+    () => new Set(allTickets.filter(t => t.sprint).map(t => t.team)),
+    [allTickets]
+  );
+
+  // Sprint scope applies to the whole page — themes, metrics, projects, chart and table.
   const tickets = useMemo(() => {
     if (sprintScope === "all") return allTickets;
-    if (sprintScope === "current") return allTickets.filter(t => t.sprintState === "active" || t.sprintState === "none");
+    if (sprintScope === "current") {
+      return allTickets.filter(t =>
+        t.sprintState === "active" ||
+        // Design Portfolio, AI Automation and Product Portfolio have no sprints at all,
+        // so everything open on their boards is the current picture.
+        (t.sprintState === "none" && !sprintTeams.has(t.team))
+      );
+    }
     return allTickets.filter(t => `${t.team}: ${t.sprint}` === sprintScope);
-  }, [allTickets, sprintScope]);
+  }, [allTickets, sprintScope, sprintTeams]);
 
   const inflight = useMemo(() => tickets.filter(t => t.flow === "inflight"), [tickets]);
   const queued = useMemo(() => tickets.filter(t => t.flow === "queued"), [tickets]);
