@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import { THEMES, METRICS, PROJECTS } from "../lib/taxonomy";
 
@@ -88,6 +88,9 @@ const S = {
   td: { textAlign: "left", padding: "7px 8px", borderBottom: `1px solid ${C.border}`, verticalAlign: "top" },
   select: { fontSize: 12.5, padding: "6px 8px", border: `1px solid ${C.border}`,
     borderRadius: 6, background: "#fff", color: C.text },
+  syncBtn: (busy) => ({ marginTop: 10, padding: "0 16px", fontSize: 12.5, fontWeight: 600,
+    border: `1px solid ${C.border}`, borderRadius: 8, background: busy ? C.soft : "#fff",
+    color: busy ? C.muted : C.text, cursor: busy ? "default" : "pointer", whiteSpace: "nowrap" }),
 };
 
 export default function Page() {
@@ -100,12 +103,21 @@ export default function Page() {
   const [owner, setOwner] = useState("");
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    fetch("/api/tickets")
+  const [syncing, setSyncing] = useState(false);
+
+  const load = useCallback((fresh) => {
+    setSyncing(true);
+    fetch(fresh ? "/api/tickets?refresh=1" : "/api/tickets")
       .then(r => r.json())
-      .then(j => (j.error ? setErr(j.error) : setData(j)))
-      .catch(e => setErr(String(e)));
+      .then(j => {
+        if (j.error) setErr(j.error);
+        else { setErr(null); setData(j); }
+      })
+      .catch(e => setErr(String(e)))
+      .finally(() => setSyncing(false));
   }, []);
+
+  useEffect(() => { load(false); }, [load]);
 
   const tickets = data?.tickets || [];
   const inflight = useMemo(() => tickets.filter(t => t.flow === "inflight"), [tickets]);
@@ -127,7 +139,15 @@ export default function Page() {
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
   const owners = useMemo(() => [...new Set(tickets.map(t => t.owner))].sort(), [tickets]);
 
-  if (err) return <div style={S.wrap}><h1 style={S.h1}>APAC Technology</h1><div style={S.banner("warn")}>{err}</div></div>;
+  if (err) return (
+    <div style={S.wrap}>
+      <h1 style={S.h1}>APAC Technology</h1>
+      <div style={S.banner("warn")}>{err}</div>
+      <button onClick={() => load(true)} disabled={syncing} style={S.syncBtn(syncing)}>
+        {syncing ? "Retrying…" : "Retry"}
+      </button>
+    </div>
+  );
   if (!data) return <div style={S.wrap}><h1 style={S.h1}>APAC Technology</h1><p style={{ color: C.muted }}>Loading tickets from ClickUp…</p></div>;
 
   const projectsFor = t => Object.keys(PROJECTS).filter(p => !t || PROJECTS[p].theme === t);
@@ -137,16 +157,23 @@ export default function Page() {
       <h1 style={S.h1}>APAC Technology — projects to Pattern&apos;s top metrics</h1>
       <div style={S.overview}>{OVERVIEW}</div>
 
-      {data.listsFailed > 0 ? (
-        <div style={S.banner("warn")}>
-          <strong>{data.listsFailed} of {data.listsTotal} ClickUp lists failed to load</strong> — numbers below are
-          incomplete. Usually a rate limit; reload in a few minutes. {data.failures.join(" · ")}
+      <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          {data.listsFailed > 0 ? (
+            <div style={S.banner("warn")}>
+              <strong>{data.listsFailed} of {data.listsTotal} ClickUp lists failed to load</strong> — numbers below are
+              incomplete. Usually a rate limit; reload in a few minutes. {data.failures.join(" · ")}
+            </div>
+          ) : (
+            <div style={S.banner("ok")}>
+              Loaded {data.count} open tickets from all {data.listsTotal} lists · {new Date(data.fetchedAt).toLocaleString()}
+            </div>
+          )}
         </div>
-      ) : (
-        <div style={S.banner("ok")}>
-          Loaded {data.count} open tickets from all {data.listsTotal} lists · {new Date(data.fetchedAt).toLocaleString()}
-        </div>
-      )}
+        <button onClick={() => load(true)} disabled={syncing} style={S.syncBtn(syncing)}>
+          {syncing ? "Syncing…" : "Sync"}
+        </button>
+      </div>
 
       <div style={S.section}>Themes</div>
       <div style={S.themes}>

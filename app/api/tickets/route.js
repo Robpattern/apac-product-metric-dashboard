@@ -1,12 +1,19 @@
 import { LISTS, PROJECTS, OWNER_BY_LIST, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
 
-export const revalidate = 300; // cache 5 min; ClickUp rate limits are tight
+// Read the query string, so the route must be dynamic. Caching is handled per-fetch
+// below: 5 min normally, bypassed entirely when the Sync button asks for fresh data.
+export const dynamic = "force-dynamic";
+
+const CACHE_SECONDS = 300; // ClickUp rate limits are tight
 
 const CLICKUP = "https://api.clickup.com/api/v2";
 
-async function fetchList(listId, token) {
+async function fetchList(listId, token, fresh) {
   const url = `${CLICKUP}/list/${listId}/task?subtasks=true&include_closed=false&order_by=updated&reverse=true`;
-  const res = await fetch(url, { headers: { Authorization: token }, next: { revalidate } });
+  const res = await fetch(url, {
+    headers: { Authorization: token },
+    ...(fresh ? { cache: "no-store" } : { next: { revalidate: CACHE_SECONDS } }),
+  });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`list ${listId}: ${res.status} ${body.slice(0, 200)}`);
@@ -15,7 +22,8 @@ async function fetchList(listId, token) {
   return json.tasks || [];
 }
 
-export async function GET() {
+export async function GET(request) {
+  const fresh = new URL(request.url).searchParams.get("refresh") === "1";
   const token = process.env.CLICKUP_API_TOKEN;
   if (!token) {
     return Response.json(
@@ -29,7 +37,7 @@ export async function GET() {
 
   const results = await Promise.all(
     LISTS.map(l =>
-      fetchList(l.id, token)
+      fetchList(l.id, token, fresh)
         .then(tasks => ({ l, tasks }))
         .catch(e => { failures.push(`${l.team} (${l.key}): ${e.message}`); return { l, tasks: null }; })
     )
