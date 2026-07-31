@@ -99,7 +99,6 @@ export default function Page() {
   const [team, setTeam] = useState("");
   const [owner, setOwner] = useState("");
   const [q, setQ] = useState("");
-  const [lowOnly, setLowOnly] = useState(false);
 
   useEffect(() => {
     fetch("/api/tickets")
@@ -122,9 +121,8 @@ export default function Page() {
     (!proj || t.project === proj) &&
     (!team || t.team === team) &&
     (!owner || t.owner === owner) &&
-    (!lowOnly || t.needsReview) &&
     (!q || t.name.toLowerCase().includes(q.toLowerCase()))
-  ), [tickets, flow, selTheme, proj, team, owner, lowOnly, q]);
+  ), [tickets, flow, selTheme, proj, team, owner, q]);
 
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
   const owners = useMemo(() => [...new Set(tickets.map(t => t.owner))].sort(), [tickets]);
@@ -244,9 +242,6 @@ export default function Page() {
         </select>
         <input style={{ ...S.select, minWidth: 180 }} placeholder="Search ticket…" value={q}
           onChange={e => setQ(e.target.value)} />
-        <label style={{ fontSize: 12.5 }}>
-          <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} /> needs review only
-        </label>
         <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{visible.length} shown</span>
       </div>
 
