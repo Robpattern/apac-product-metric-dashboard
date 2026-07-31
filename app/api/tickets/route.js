@@ -1,4 +1,4 @@
-import { LISTS, PROJECTS, OWNER_BY_LIST, EXCLUDED, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
+import { LISTS, PROJECTS, OWNER_BY_LIST, PROJECT_BY_TICKET, EXCLUDED, isClosed, flowOf, classifyProject } from "../../../lib/taxonomy";
 
 // Read the query string, so the route must be dynamic. Caching is handled per-fetch
 // below: 5 min normally, bypassed entirely when the Sync button asks for fresh data.
@@ -49,7 +49,11 @@ export async function GET(request) {
     for (const t of tasks) {
       const status = t.status?.status || "";
       if (isClosed(status)) continue;
-      const { project, confident } = classifyProject(l.key, t.name);
+      const cid = t.custom_id || t.id;
+      const override = PROJECT_BY_TICKET[cid];
+      const classified = classifyProject(l.key, t.name);
+      const project = override || classified.project;
+      const confident = override ? true : classified.confident;
       if (project === EXCLUDED) { excluded++; continue; }
       const p = PROJECTS[project];
       tickets.push({
