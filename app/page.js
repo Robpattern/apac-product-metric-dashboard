@@ -128,7 +128,6 @@ export default function Page() {
 
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
   const owners = useMemo(() => [...new Set(tickets.map(t => t.owner))].sort(), [tickets]);
-  const nLow = tickets.filter(t => t.needsReview).length;
 
   if (err) return <div style={S.wrap}><h1 style={S.h1}>APAC Technology</h1><div style={S.banner("warn")}>{err}</div></div>;
   if (!data) return <div style={S.wrap}><h1 style={S.h1}>APAC Technology</h1><p style={{ color: C.muted }}>Loading tickets from ClickUp…</p></div>;
@@ -225,11 +224,6 @@ export default function Page() {
       </div>
 
       <div style={S.section}>Tickets</div>
-      {nLow > 0 && (
-        <div style={{ fontSize: 11.5, margin: "-4px 0 9px", color: "#7a5b12" }}>
-          {nLow} of {tickets.length} tickets were auto-classified by fallback rather than a keyword match — marked “?”.
-        </div>
-      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 9 }}>
         <select style={S.select} value={flow} onChange={e => setFlow(e.target.value)}>
           <option value="inflight">In flight now</option>
