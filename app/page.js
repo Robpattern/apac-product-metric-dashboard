@@ -103,6 +103,20 @@ export default function Page() {
   const [owner, setOwner] = useState("");
   const [q, setQ] = useState("");
   const [sprintScope, setSprintScope] = useState("current");
+  const [expanded, setExpanded] = useState(() => new Set());
+  const [sortKey, setSortKey] = useState("cid");
+  const [sortDir, setSortDir] = useState("asc");
+
+  const toggle = id => setExpanded(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const sortBy = key => {
+    if (key === sortKey) setSortDir(d => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
   const [syncing, setSyncing] = useState(false);
 
@@ -170,7 +184,29 @@ export default function Page() {
   // Nest subtasks under their parent so Nimbus's report items read as one epic with its
   // children rather than 20 unrelated rows. A ticket whose parent is filtered out becomes
   // a root itself, so nothing disappears. Counts are unaffected — this is display only.
+  // Subtasks stay collapsed until the parent is expanded; sorting is applied within each
+  // level, so the hierarchy survives sorting instead of being flattened by it.
   const orderedVisible = useMemo(() => {
+    const sortVal = (t, key) => {
+      switch (key) {
+        // ATECH-10946 must sort above ATECH-7061 numerically, not as a string.
+        case "cid": { const m = /(\d+)/.exec(t.cid || ""); return m ? parseInt(m[1], 10) : 0; }
+        case "team": return t.team || "";
+        case "status": return t.status || "";
+        case "project": return PROJECTS[t.project] ? PROJECTS[t.project].name : "";
+        case "owner": return t.owner || "";
+        case "metrics": return t.metrics ? t.metrics.length : 0;
+        default: return "";
+      }
+    };
+    const cmp = (a, b) => {
+      const va = sortVal(a, sortKey), vb = sortVal(b, sortKey);
+      const r = typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb));
+      return sortDir === "asc" ? r : -r;
+    };
+
     const byIdMap = new Map(visible.map(r => [r.id, r]));
     const kids = new Map();
     const roots = [];
@@ -182,13 +218,23 @@ export default function Page() {
         roots.push(r);
       }
     }
+    roots.sort(cmp);
+    for (const list of kids.values()) list.sort(cmp);
+
     const out = [];
     const walk = (r, depth) => {
-      out.push({ row: r, depth, childCount: (kids.get(r.id) || []).length });
-      for (const c of kids.get(r.id) || []) walk(c, depth + 1);
+      const childList = kids.get(r.id) || [];
+      out.push({ row: r, depth, childCount: childList.length, open: expanded.has(r.id) });
+      if (expanded.has(r.id)) for (const c of childList) walk(c, depth + 1);
     };
     roots.forEach(r => walk(r, 0));
     return out;
+  }, [visible, expanded, sortKey, sortDir]);
+
+  // Every parent that currently has children in scope — for expand/collapse all.
+  const parentIds = useMemo(() => {
+    const ids = new Set(visible.map(r => r.id));
+    return [...new Set(visible.filter(r => r.parent && ids.has(r.parent)).map(r => r.parent))];
   }, [visible]);
 
   const teams = useMemo(() => [...new Set(tickets.map(t => t.team))].sort(), [tickets]);
@@ -337,31 +383,62 @@ export default function Page() {
         </select>
         <input style={{ ...S.select, minWidth: 180 }} placeholder="Search ticket…" value={q}
           onChange={e => setQ(e.target.value)} />
-        <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{visible.length} shown</span>
+        {parentIds.length > 0 && (
+          <button
+            onClick={() => setExpanded(prev => (prev.size ? new Set() : new Set(parentIds)))}
+            style={{ ...S.select, cursor: "pointer" }}>
+            {expanded.size ? "Collapse all" : `Expand all (${parentIds.length})`}
+          </button>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>
+          {visible.length} shown{expanded.size === 0 && parentIds.length > 0 ? `, ${orderedVisible.length} rows` : ""}
+        </span>
       </div>
 
       <div style={{ maxHeight: 520, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead>
             <tr>
-              <th style={S.th}>Ticket</th>
-              <th style={{ ...S.th, width: 110 }}>Team</th>
-              <th style={{ ...S.th, width: 84 }}>Status</th>
-              <th style={{ ...S.th, width: 160 }}>Project</th>
-              <th style={{ ...S.th, width: 130 }}>Owner</th>
-              <th style={{ ...S.th, width: 210 }}>Metrics</th>
+              {[
+                ["cid", "Ticket", undefined],
+                ["team", "Team", 110],
+                ["status", "Status", 84],
+                ["project", "Project", 160],
+                ["owner", "Owner", 130],
+                ["metrics", "Metrics", 210],
+              ].map(([key, label, width]) => (
+                <th key={key} onClick={() => sortBy(key)} title="Sort"
+                  style={{ ...S.th, width, cursor: "pointer", userSelect: "none" }}>
+                  {label}
+                  <span style={{ marginLeft: 4, color: sortKey === key ? C.text : "#c9ced6" }}>
+                    {sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
+                  </span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {orderedVisible.map(({ row: t, depth, childCount }) => (
+            {orderedVisible.map(({ row: t, depth, childCount, open }) => (
               <tr key={t.id} style={depth > 0 ? { background: "#fcfcfd" } : undefined}>
                 <td style={{ ...S.td, paddingLeft: 8 + depth * 18 }}>
-                  {depth > 0 && <span style={{ color: "#c9ced6", marginRight: 5 }}>└</span>}
+                  {childCount > 0 ? (
+                    <span onClick={() => toggle(t.id)} title={open ? "Collapse" : "Expand"}
+                      style={{ cursor: "pointer", userSelect: "none", color: C.muted,
+                        marginRight: 5, display: "inline-block", width: 10 }}>
+                      {open ? "▾" : "▸"}
+                    </span>
+                  ) : (
+                    <span style={{ display: "inline-block", width: 10, marginRight: 5,
+                      color: "#c9ced6" }}>{depth > 0 ? "└" : ""}</span>
+                  )}
                   <a href={t.url} target="_blank" rel="noopener noreferrer"
                     style={{ color: depth > 0 ? C.muted : C.text }}>{t.cid}</a>
                   <span style={{ color: depth > 0 ? C.muted : C.text }}> — {t.name}</span>
                   {childCount > 0 && (
-                    <span style={{ ...S.chip, marginLeft: 6 }}>{childCount} subtask{childCount === 1 ? "" : "s"}</span>
+                    <span onClick={() => toggle(t.id)}
+                      style={{ ...S.chip, marginLeft: 6, cursor: "pointer" }}>
+                      {childCount} subtask{childCount === 1 ? "" : "s"}
+                    </span>
                   )}
                 </td>
                 <td style={{ ...S.td, color: C.muted }}>{t.team}</td>
