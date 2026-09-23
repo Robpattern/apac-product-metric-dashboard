@@ -159,6 +159,14 @@ export async function GET(request) {
 
   return Response.json({
     fetchedAt: new Date().toISOString(),
+    // Sources attempted at the top level: each folder counts once, plus each direct list.
+    // Counting resolved lists here produced nonsense like "5 of 2 failed" when the folder
+    // enumeration itself failed and never returned any lists to count.
+    sourcesTotal: FOLDERS.length + STANDALONE_LISTS.length,
+    sourcesFailed: failures.length,
+    // A 401 is a dead token, not a rate limit — worth saying so rather than telling
+    // someone to wait a few minutes for something that will never recover on its own.
+    authFailed: failures.some(f => /\b401\b|token invalid|OAUTH_025/i.test(f)),
     listsTotal: lists.length,
     listsFailed: failures.length,
     failures,

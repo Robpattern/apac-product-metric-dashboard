@@ -273,10 +273,16 @@ export default function Page() {
 
       <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
         <div style={{ flex: 1 }}>
-          {data.listsFailed > 0 ? (
+          {data.authFailed ? (
             <div style={S.banner("warn")}>
-              <strong>{data.listsFailed} of {data.listsTotal} ClickUp lists failed to load</strong> — numbers below are
-              incomplete. Usually a rate limit; reload in a few minutes. {data.failures.join(" · ")}
+              <strong>ClickUp rejected the API token</strong> — every source returned 401, so nothing below is real.
+              This does not recover on its own: generate a new token in ClickUp (Settings → Apps → API Token),
+              update <code>CLICKUP_API_TOKEN</code> in Vercel → Settings → Environment Variables, then redeploy.
+            </div>
+          ) : data.sourcesFailed > 0 ? (
+            <div style={S.banner("warn")}>
+              <strong>{data.sourcesFailed} of {data.sourcesTotal} ClickUp sources failed to load</strong> — numbers
+              below are incomplete. Usually a rate limit; reload in a few minutes. {data.failures.join(" · ")}
             </div>
           ) : (
             <div style={S.banner("ok")}>
